@@ -88,131 +88,131 @@ object MatcherTool extends ScorexLogging {
     db.readWrite(rw => keysToDelete.result().foreach(rw.delete(_, "matcher-legacy-entries")))
   }
 
-  private def migrateOrderInfo(readOnlyBlockchainDb: ReadOnlyDB, db: DB, matcherAccount: String, useFast: Boolean, from: Int): Unit = {
-    log.info(s"Starting OrderInfo migration from $from, algorithm: ${if (useFast) "fast" else "correct"}")
-    val readOnlyDB = new ReadOnlyDB(db, new ReadOptions())
-
-    val scriptedMemo = mutable.Map.empty[Asset, Boolean]
-    def isAssetScripted(asset: Asset): Boolean =
-      scriptedMemo.getOrElseUpdate(
-        asset,
-        asset.fold(false) { assetId =>
-          readOnlyBlockchainDb.get(Keys.assetScriptHistory(assetId)).headOption.exists { height =>
-            readOnlyBlockchainDb.get(Keys.assetScriptPresent(assetId)(height)).isDefined
-          }
-        }
-      )
-
-    val matcherAccountAddress = Address.fromString(matcherAccount).explicitGet()
-    val isMatcherScripted = {
-      for {
-        id     <- readOnlyBlockchainDb.get(Keys.addressId(matcherAccountAddress))
-        height <- readOnlyBlockchainDb.get(Keys.addressScriptHistory(id)).headOption
-      } yield readOnlyBlockchainDb.get(Keys.addressScript(id)(height)).isDefined
-    }.getOrElse(false)
-
-    val defaultFee   = 300000L
-    val scriptRunFee = 400000L
-    val baseFee      = defaultFee + (if (isMatcherScripted) scriptRunFee else 0L)
-
-    def getBlockchainTotalFee(assetPair: AssetPair): (Asset, Long) = {
-      val a = if (isAssetScripted(assetPair.amountAsset)) scriptRunFee else 0L
-      val p = if (isAssetScripted(assetPair.priceAsset)) scriptRunFee else 0L
-      (Acryl, baseFee + a + p)
-    }
-
-    def getDexTotalFee(orderId: Order.Id): Option[(Asset, Long)] =
-      readOnlyDB.get(MatcherKeys.order(orderId)).map(x => (x.matcherFeeAssetId, x.matcherFee))
-
-    val getTotalFee: (AssetPair, Order.Id) => (Asset, Long) =
-      if (useFast) { (assetPair, _) =>
-        getBlockchainTotalFee(assetPair)
-      } else { (assetPair, orderId) =>
-        getDexTotalFee(orderId).getOrElse(getBlockchainTotalFee(assetPair))
-      }
-
-    val iter = readOnlyDB.iterateOverStream(Shorts.toByteArray(2))
-    val orderInfos =
-      iter.zipWithIndex
-        .drop(from)
-        .map { case (entry, idx) => (parseOrderInfo(entry), idx) }
-        .filter {
-          case ((_, Success(finalInfo)), _) => finalInfo.version <= 1
-          case ((_, Failure(_)), _)         => true // to remove
-        }
-
-    val maxMaxBatchSize = 2000
-    var freeBatchSpace  = maxMaxBatchSize
-    var currBatch       = db.createWriteBatch()
-
-    def forceWrite(): Unit = {
-      db.write(currBatch)
-      currBatch = db.createWriteBatch()
-      freeBatchSpace = maxMaxBatchSize
-    }
-
-    def update(id: Order.Id, orderInfo: FinalOrderInfo): Unit = {
-      val key = MatcherKeys.orderInfo(id)
-      currBatch.put(key.keyBytes, key.encode(Some(orderInfo)))
-
-      freeBatchSpace -= 1
-      if (freeBatchSpace <= 0) forceWrite()
-    }
-
-    def delete(id: Order.Id): Unit = {
-      currBatch.delete(MatcherKeys.orderInfo(id).keyBytes)
-      currBatch.delete(MatcherKeys.order(id).keyBytes)
-
-      freeBatchSpace -= 2
-      if (freeBatchSpace <= 0) forceWrite()
-    }
-
-    orderInfos.foreach {
-      case ((id, info), idx) =>
-        info match {
-          case Failure(e) =>
-            log.warn(s"Can't parse the $id order: ${e.getMessage}, will remove it")
-            delete(id)
-
-          case Success(finalInfo) =>
-            val (feeAssetId, totalFee) = getTotalFee(finalInfo.assetPair, id)
-            if (totalFee != defaultFee) {
-              val filledFee = (BigInt(finalInfo.status.filledAmount) * totalFee / finalInfo.amount).toLong
-              val updatedStatus = finalInfo.status match {
-                case x: OrderStatus.Cancelled => OrderStatus.Cancelled(x.filledAmount, filledFee)
-                case x: OrderStatus.Filled    => OrderStatus.Filled(x.filledAmount, filledFee)
-                case OrderStatus.NotFound     => finalInfo.status // Impossible
-              }
-
-              val updatedOrderInfo = OrderInfo.v2(
-                side = finalInfo.side,
-                amount = finalInfo.amount,
-                price = finalInfo.price,
-                matcherFee = totalFee,
-                matcherFeeAssetId = feeAssetId,
-                timestamp = finalInfo.timestamp,
-                status = updatedStatus,
-                assetPair = finalInfo.assetPair
-              )
-
-              update(id, updatedOrderInfo)
-            }
-        }
-
-        if (idx % 100000 == 0) log.info(s"Current index: $idx")
-    }
-
-    forceWrite()
-    iter.close()
-  }
-
-  private def parseOrderInfo(entry: DBEntry): (Order.Id, Try[OrderInfo.FinalOrderInfo]) = {
-    val orderId = ByteStr(entry.getKey.drop(2))
-    orderId -> Try {
-      val oi = MatcherKeys.orderInfo(orderId).parse(entry.getValue)
-      oi.getOrElse(throw new RuntimeException(s"Can't parse order info for $orderId, bytes: ${entry.getValue.mkString(",")}"))
-    }
-  }
+//  private def migrateOrderInfo(readOnlyBlockchainDb: ReadOnlyDB, db: DB, matcherAccount: String, useFast: Boolean, from: Int): Unit = {
+//    log.info(s"Starting OrderInfo migration from $from, algorithm: ${if (useFast) "fast" else "correct"}")
+//    val readOnlyDB = new ReadOnlyDB(db, new ReadOptions())
+//
+//    val scriptedMemo = mutable.Map.empty[Asset, Boolean]
+//    def isAssetScripted(asset: Asset): Boolean =
+//      scriptedMemo.getOrElseUpdate(
+//        asset,
+//        asset.fold(false) { assetId =>
+//          readOnlyBlockchainDb.get(Keys.assetScriptHistory(assetId)).headOption.exists { height =>
+//            readOnlyBlockchainDb.get(Keys.assetScriptPresent(assetId)(height)).isDefined
+//          }
+//        }
+//      )
+//
+//    val matcherAccountAddress = Address.fromString(matcherAccount).explicitGet()
+//    val isMatcherScripted = {
+//      for {
+//        id     <- readOnlyBlockchainDb.get(Keys.addressId(matcherAccountAddress))
+//        height <- readOnlyBlockchainDb.get(Keys.addressScriptHistory(id)).headOption
+//      } yield readOnlyBlockchainDb.get(Keys.addressScript(id)(height)).isDefined
+//    }.getOrElse(false)
+//
+//    val defaultFee   = 300000L
+//    val scriptRunFee = 400000L
+//    val baseFee      = defaultFee + (if (isMatcherScripted) scriptRunFee else 0L)
+//
+//    def getBlockchainTotalFee(assetPair: AssetPair): (Asset, Long) = {
+//      val a = if (isAssetScripted(assetPair.amountAsset)) scriptRunFee else 0L
+//      val p = if (isAssetScripted(assetPair.priceAsset)) scriptRunFee else 0L
+//      (Acryl, baseFee + a + p)
+//    }
+//
+//    def getDexTotalFee(orderId: Order.Id): Option[(Asset, Long)] =
+//      readOnlyDB.get(MatcherKeys.order(orderId)).map(x => (x.matcherFeeAssetId, x.matcherFee))
+//
+//    val getTotalFee: (AssetPair, Order.Id) => (Asset, Long) =
+//      if (useFast) { (assetPair, _) =>
+//        getBlockchainTotalFee(assetPair)
+//      } else { (assetPair, orderId) =>
+//        getDexTotalFee(orderId).getOrElse(getBlockchainTotalFee(assetPair))
+//      }
+//
+//    val iter = readOnlyDB.iterateOverStream(Shorts.toByteArray(2))
+//    val orderInfos =
+//      iter.zipWithIndex
+//        .drop(from)
+//        .map { case (entry, idx) => (parseOrderInfo(entry), idx) }
+//        .filter {
+//          case ((_, Success(finalInfo)), _) => finalInfo.version <= 1
+//          case ((_, Failure(_)), _)         => true // to remove
+//        }
+//
+//    val maxMaxBatchSize = 2000
+//    var freeBatchSpace  = maxMaxBatchSize
+//    var currBatch       = db.createWriteBatch()
+//
+//    def forceWrite(): Unit = {
+//      db.write(currBatch)
+//      currBatch = db.createWriteBatch()
+//      freeBatchSpace = maxMaxBatchSize
+//    }
+//
+//    def update(id: Order.Id, orderInfo: FinalOrderInfo): Unit = {
+//      val key = MatcherKeys.orderInfo(id)
+//      currBatch.put(key.keyBytes, key.encode(Some(orderInfo)))
+//
+//      freeBatchSpace -= 1
+//      if (freeBatchSpace <= 0) forceWrite()
+//    }
+//
+//    def delete(id: Order.Id): Unit = {
+//      currBatch.delete(MatcherKeys.orderInfo(id).keyBytes)
+//      currBatch.delete(MatcherKeys.order(id).keyBytes)
+//
+//      freeBatchSpace -= 2
+//      if (freeBatchSpace <= 0) forceWrite()
+//    }
+//
+//    orderInfos.foreach {
+//      case ((id, info), idx) =>
+//        info match {
+//          case Failure(e) =>
+//            log.warn(s"Can't parse the $id order: ${e.getMessage}, will remove it")
+//            delete(id)
+//
+//          case Success(finalInfo) =>
+//            val (feeAssetId, totalFee) = getTotalFee(finalInfo.assetPair, id)
+//            if (totalFee != defaultFee) {
+//              val filledFee = (BigInt(finalInfo.status.filledAmount) * totalFee / finalInfo.amount).toLong
+//              val updatedStatus = finalInfo.status match {
+//                case x: OrderStatus.Cancelled => OrderStatus.Cancelled(x.filledAmount, filledFee)
+//                case x: OrderStatus.Filled    => OrderStatus.Filled(x.filledAmount, filledFee)
+//                case OrderStatus.NotFound     => finalInfo.status // Impossible
+//              }
+//
+//              val updatedOrderInfo = OrderInfo.v2(
+//                side = finalInfo.side,
+//                amount = finalInfo.amount,
+//                price = finalInfo.price,
+//                matcherFee = totalFee,
+//                matcherFeeAssetId = feeAssetId,
+//                timestamp = finalInfo.timestamp,
+//                status = updatedStatus,
+//                assetPair = finalInfo.assetPair
+//              )
+//
+//              update(id, updatedOrderInfo)
+//            }
+//        }
+//
+//        if (idx % 100000 == 0) log.info(s"Current index: $idx")
+//    }
+//
+//    forceWrite()
+//    iter.close()
+//  }
+//
+//  private def parseOrderInfo(entry: DBEntry): (Order.Id, Try[OrderInfo.FinalOrderInfo]) = {
+//    val orderId = ByteStr(entry.getKey.drop(2))
+//    orderId -> Try {
+//      val oi = MatcherKeys.orderInfo(orderId).parse(entry.getValue)
+//      oi.getOrElse(throw new RuntimeException(s"Can't parse order info for $orderId, bytes: ${entry.getValue.mkString(",")}"))
+//    }
+//  }
 
   def main(args: Array[String]): Unit = {
     log.info(s"OK, engine start")
@@ -313,10 +313,10 @@ object MatcherTool extends ScorexLogging {
         orderInfoKey.parse(db.get(orderInfoKey.keyBytes)).foreach { oi =>
           log.info(s"Order info: $oi")
         }
-      case "oi-migrate" =>
-        val useFast = if (args.length < 3) false else args(2).toBoolean
-        val offset  = if (args.length < 4) 0 else args(3).toInt
-        migrateOrderInfo(new ReadOnlyDB(blockchainDb, new ReadOptions()), db, settings.account, useFast, offset)
+//      case "oi-migrate" =>
+//        val useFast = if (args.length < 3) false else args(2).toBoolean
+//        val offset  = if (args.length < 4) 0 else args(3).toInt
+//        migrateOrderInfo(new ReadOnlyDB(blockchainDb, new ReadOptions()), db, settings.account, useFast, offset)
       case "ddd" =>
         log.warn("DELETING LEGACY ENTRIES")
         deleteLegacyEntries(db)

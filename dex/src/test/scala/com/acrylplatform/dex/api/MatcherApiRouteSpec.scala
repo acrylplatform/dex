@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory
 import com.acrylplatform.account.KeyPair
 import com.acrylplatform.common.utils.Base58
 import com.acrylplatform.dex._
+import com.acrylplatform.dex.error.ErrorFormatterContext
 import com.acrylplatform.dex.settings.MatcherSettings
 import com.acrylplatform.http.ApiMarshallers._
 import com.acrylplatform.http.RouteSpec
@@ -62,7 +63,7 @@ class MatcherApiRouteSpec extends RouteSpec("/matcher") with RequestGen with Pat
     }
   }
 
-  private def test[T](f: Route => T): T = {
+  private def test[U](f: Route => U): U = {
     val blockchain   = stub[Blockchain]
     val addressActor = TestProbe("address")
     addressActor.setAutoPilot { (sender: ActorRef, msg: Any) =>
@@ -74,9 +75,7 @@ class MatcherApiRouteSpec extends RouteSpec("/matcher") with RequestGen with Pat
       TestActor.NoAutoPilot
     }
 
-    implicit val context = new com.acrylplatform.dex.error.ErrorFormatterContext {
-      override def assetDecimals(asset: Asset): Int = 8
-    }
+    implicit val context: ErrorFormatterContext = (_: Asset) => 8
 
     val route = MatcherApiRoute(
       assetPairBuilder = new AssetPairBuilder(settings, blockchain, Set.empty),
