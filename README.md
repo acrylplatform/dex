@@ -1,4 +1,4 @@
-# DEX [![Build Status](https://travis-ci.org/acrylplatform/dex.svg?branch=master)](https://travis-ci.org/acrylplatform/dex)
+# DEX [![Build Status](https://travis-ci.com/acrylplatform/dex.svg?branch=master)](https://travis-ci.com/acrylplatform/dex)
 
 Decentralized exchange for Acryl Node.
 
