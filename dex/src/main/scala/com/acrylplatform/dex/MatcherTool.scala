@@ -15,28 +15,23 @@ import com.google.common.primitives.Shorts
 import com.typesafe.config.ConfigFactory
 import com.acrylplatform.account.{Address, AddressScheme}
 import com.acrylplatform.common.state.ByteStr
-import com.acrylplatform.common.utils.{Base58, EitherExt2}
+import com.acrylplatform.common.utils.Base58
 import com.acrylplatform.database._
 import com.acrylplatform.db.openDB
 import com.acrylplatform.dex.db.{AssetPairsDB, OrderBookSnapshotDB}
 import com.acrylplatform.dex.doc.MatcherErrorDoc
 import com.acrylplatform.dex.market.{MatcherActor, OrderBookActor}
-import com.acrylplatform.dex.model.OrderInfo.FinalOrderInfo
-import com.acrylplatform.dex.model.{LimitOrder, OrderBook, OrderInfo, OrderStatus}
+import com.acrylplatform.dex.model.{LimitOrder, OrderBook}
 import com.acrylplatform.dex.settings.MatcherSettings
 import com.acrylplatform.settings.loadConfig
-import com.acrylplatform.transaction.Asset
-import com.acrylplatform.transaction.Asset.Acryl
-import com.acrylplatform.transaction.assets.exchange.{AssetPair, Order}
+import com.acrylplatform.transaction.assets.exchange.AssetPair
 import com.acrylplatform.utils.ScorexLogging
 import net.ceedubs.ficus.Ficus._
-import org.iq80.leveldb.{DB, ReadOptions}
+import org.iq80.leveldb.DB
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-import scala.util.{Failure, Success, Try}
 
 object MatcherTool extends ScorexLogging {
   private def collectStats(db: DB): Unit = {
