@@ -37,6 +37,7 @@ object ReleasePlugin extends AutoPlugin {
           .value,
         packageAll := Def
           .sequential(
+            Compile / cleanAll,
             Compile / createDirectories,
             Def.task {
               // Don't forget to update "artifactExtensions" if there is a new artifact
@@ -46,6 +47,27 @@ object ReleasePlugin extends AutoPlugin {
               )
 
               val destDir = (Compile / releaseDirectory).value
+
+              val hashes = artifacts.map { file =>
+                val xs = Using.fileInputStream(file)(mk("SHA-256", _))
+                file.toPath.getFileName.toString -> Hex.encodeHexString(xs)
+              }
+
+              // takeWhile to sort network builds
+              val sortedHashes = hashes
+                .sortBy { case (fileName, _) => (fileName.takeWhile(x => !x.isDigit).length, fileName) }
+
+              val content =
+                s"""## SHA256 Checksums
+                   |
+                   |```
+                   |${sortedHashes.map { case (fileName, hash) => s"$hash $fileName" }.mkString("\n")}
+                   |```
+                   |""".stripMargin
+
+              val releaseNotesFile = destDir.resolve("release-notes.md").toFile
+              IO.write(releaseNotesFile, content, StandardCharsets.UTF_8)
+
               artifacts
                 .map(_.toPath)
                 .foreach { source =>
