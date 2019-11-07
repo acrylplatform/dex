@@ -65,7 +65,7 @@ object ReleasePlugin extends AutoPlugin {
                    |```
                    |""".stripMargin
 
-              val releaseNotesFile = destDir.resolve("release-notes.md").toFile
+              val releaseNotesFile = destDir.resolve("checksums.md").toFile
               IO.write(releaseNotesFile, content, StandardCharsets.UTF_8)
 
               artifacts
