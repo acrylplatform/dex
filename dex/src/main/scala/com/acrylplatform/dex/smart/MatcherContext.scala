@@ -11,7 +11,18 @@ import com.acrylplatform.lang.v1.evaluator.ctx._
 import com.acrylplatform.lang.{ExecutionError, ValidationError}
 import com.acrylplatform.settings.BlockchainSettings
 import com.acrylplatform.state.reader.LeaseDetails
-import com.acrylplatform.state.{AccountDataInfo, AssetDescription, BalanceSnapshot, Blockchain, DataEntry, InvokeScriptResult, LeaseBalance, Portfolio, TransactionId, VolumeAndFee}
+import com.acrylplatform.state.{
+  AccountDataInfo,
+  AssetDescription,
+  BalanceSnapshot,
+  Blockchain,
+  DataEntry,
+  InvokeScriptResult,
+  LeaseBalance,
+  Portfolio,
+  TransactionId,
+  VolumeAndFee
+}
 import com.acrylplatform.transaction.assets.exchange.Order
 import com.acrylplatform.transaction.lease.LeaseTransaction
 import com.acrylplatform.transaction.smart.BlockchainContext
@@ -93,7 +104,13 @@ object MatcherContext {
     override def collectLposPortfolios[A](pf: PartialFunction[(Address, Portfolio), A]): Map[Address, A] = kill("collectLposPortfolios")
     override def invokeScriptResult(txId: TransactionId): Either[ValidationError, InvokeScriptResult]    = kill("invokeScriptResult")
 
-    override def transferById(id: BlockId): Option[(Int, TransferTransaction)]                           = kill("transferById")
+    override def transferById(id: BlockId): Option[(Int, TransferTransaction)] = kill("transferById")
+
+    /** Block reward related */
+    override def blockReward(height: Int): Option[Long]   = kill("blockReward")
+    override def lastBlockReward: Option[Long]            = kill("lastBlockReward")
+
+    override def acrylAmount(height: Int): BigInt = kill("acrylAmount")
 
     override def collectActiveLeases[T](pf: PartialFunction[LeaseTransaction, T]): Seq[T] = kill("collectActiveLeases")
   }

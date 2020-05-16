@@ -22,7 +22,7 @@ import io.getquill.{PostgresJdbcContext, SnakeCase}
 import net.ceedubs.ficus.Ficus._
 
 import scala.io.Source
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Random, Try}
 
 class OrderHistoryTestSuite extends MatcherSuiteBase {
 
@@ -36,12 +36,14 @@ class OrderHistoryTestSuite extends MatcherSuiteBase {
 
   val acrylNetwork: Network = dockerSingleton().createNetwork
 
+  val networkSeed = Random.nextInt(0x100000) << 4 | 0x0A000000
+
   val postgresImageName, postgresUser = "postgres"
   val postgresContainerName           = "pgc"
   val postgresPassword                = "docker"
   val postgresEnv                     = s"POSTGRES_PASSWORD=$postgresPassword"
   val postgresContainerPort           = "5432"
-  val postgresContainerIp: String     = InetAddress.getByAddress(Ints.toByteArray(10 & 0xF | dockerSingleton().networkSeed)).getHostAddress
+  val postgresContainerIp: String     = InetAddress.getByAddress(Ints.toByteArray(10 & 0xF | networkSeed)).getHostAddress
 
   val postgresContainerLauncher =
     new DockerContainerLauncher(
